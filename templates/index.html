@@ -1,0 +1,562 @@
+<!-- Versión del template: 7f8e9d2a-3c5b-4e1d-9a6f-8b2d3e1c5a4d -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero Dinámico</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container {
+            max-width: 1400px;
+        }
+        .column {
+            min-height: 300px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            margin: 5px;
+            float: left;
+            width: 30%;
+            transition: all 0.3s ease;
+        }
+        .requirement {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            cursor: move;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            animation: fadeIn 0.5s ease-in;
+        }
+        .requirement.dragging {
+            opacity: 0.5;
+            transform: scale(0.98);
+        }
+        .comment-form {
+            margin-top: 10px;
+        }
+        #Pendiente .requirement { border-left: 5px solid #ffc107; } /* Amarillo para Pendiente */
+        #En Progreso .requirement { border-left: 5px solid #ff9800; } /* Naranja para En Progreso */
+        #Completado .requirement { border-left: 5px solid #4caf50; } /* Verde para Completado */
+        .progress-bar {
+            height: 5px;
+            background-color: #4caf50;
+            margin-top: 5px;
+            transition: width 0.3s ease;
+        }
+        .edit-form {
+            display: none;
+            margin-top: 10px;
+        }
+        .edit-btn {
+            margin-left: 5px;
+        }
+        .filters {
+            margin-bottom: 20px;
+        }
+        .dashboard {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+        @media (max-width: 768px) {
+            .column {
+                width: 100%;
+                margin-bottom: 15px;
+            }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .notification {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background-color: #28a745;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Tablero Dinámico</h1>
+        <div id="notification" class="notification"></div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <div class="dashboard">
+            <h4>Resumen</h4>
+            <p>Pendiente: {{ status_counts.get('Pendiente', 0) }}</p>
+            <p>En Progreso: {{ status_counts.get('En Progreso', 0) }}</p>
+            <p>Completado: {{ status_counts.get('Completado', 0) }}</p>
+        </div>
+        <div class="filters">
+            <form method="GET" action="{{ url_for('index') }}" class="row g-3">
+                <div class="col-auto">
+                    <input type="text" class="form-control" name="search" placeholder="Buscar en todo el texto" value="{{ search }}">
+                </div>
+                <div class="col-auto">
+                    <select class="form-select" name="status" onchange="this.form.submit()">
+                        <option value="">Todos los estados</option>
+                        <option value="Pendiente" {% if status_filter == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                        <option value="En Progreso" {% if status_filter == 'En Progreso' %}selected{% endif %}>En Progreso</option>
+                        <option value="Completado" {% if status_filter == 'Completado' %}selected{% endif %}>Completado</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <select class="form-select" name="priority" onchange="this.form.submit()">
+                        <option value="">Todas las prioridades</option>
+                        <option value="Baja" {% if priority_filter == 'Baja' %}selected{% endif %}>Baja</option>
+                        <option value="Media" {% if priority_filter == 'Media' %}selected{% endif %}>Media</option>
+                        <option value="Alta" {% if priority_filter == 'Alta' %}selected{% endif %}>Alta</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <input type="text" class="form-control" name="unit" placeholder="Filtrar por unidad" value="{{ unit_filter }}" onchange="this.form.submit()">
+                </div>
+                <div class="col-auto">
+                    <select class="form-select" name="developer" onchange="this.form.submit()">
+                        <option value="">Todos los desarrolladores</option>
+                        <option value="Jairo Adolfo Niño" {% if developer_filter == 'Jairo Adolfo Niño' %}selected{% endif %}>Jairo Adolfo Niño</option>
+                        <option value="Danilo Ramírez" {% if developer_filter == 'Danilo Ramírez' %}selected{% endif %}>Danilo Ramírez</option>
+                        <option value="Jenry Henao Valencia" {% if developer_filter == 'Jenry Henao Valencia' %}selected{% endif %}>Jenry Henao Valencia</option>
+                        <option value="Wilson Aponte Garcia" {% if developer_filter == 'Wilson Aponte Garcia' %}selected{% endif %}>Wilson Aponte Garcia</option>
+                        <option value="Alejandro Cardona" {% if developer_filter == 'Alejandro Cardona' %}selected{% endif %}>Alejandro Cardona</option>
+                        <option value="Brayan Alexander Diaz" {% if developer_filter == 'Brayan Alexander Diaz' %}selected{% endif %}>Brayan Alexander Diaz</option>
+                        <option value="Mauricio Figueroa Quintero" {% if developer_filter == 'Mauricio Figueroa Quintero' %}selected{% endif %}>Mauricio Figueroa Quintero</option>
+                        <option value="Jhon Bermudez" {% if developer_filter == 'Jhon Bermudez' %}selected{% endif %}>Jhon Bermudez</option>
+                        <option value="Faber Alonso Lopez" {% if developer_filter == 'Faber Alonso Lopez' %}selected{% endif %}>Faber Alonso Lopez</option>
+                        <option value="Jennifer Osorio Castillo" {% if developer_filter == 'Jennifer Osorio Castillo' %}selected{% endif %}>Jennifer Osorio Castillo</option>
+                        <option value="Jesus Pena" {% if developer_filter == 'Jesus Pena' %}selected{% endif %}>Jesus Pena</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        <h2>Agregar Requerimiento</h2>
+        <form method="POST" action="{{ url_for('add_requirement') }}">
+            <div class="mb-3">
+                <label for="title" class="form-label">Título</label>
+                <input type="text" class="form-control" id="title" name="title" required>
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Descripción</label>
+                <textarea class="form-control" id="description" name="description"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="status" class="form-label">Estado Inicial</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="En Progreso">En Progreso</option>
+                    <option value="Completado">Completado</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="priority" class="form-label">Prioridad</label>
+                <select class="form-select" id="priority" name="priority">
+                    <option value="Baja">Baja</option>
+                    <option value="Media">Media</option>
+                    <option value="Alta">Alta</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="progress" class="form-label">Progreso (%)</label>
+                <input type="number" class="form-control" id="progress" name="progress" min="0" max="100" value="0" oninput="validateProgress(this)">
+            </div>
+            <div class="mb-3">
+                <label for="unit" class="form-label">Unidad Operativa</label>
+                <select class="form-select" id="unit" name="unit">
+                    <option value="Colmena">Colmena</option>
+                    <option value="Tuya">Tuya</option>
+                    <option value="Proteccion">Protección</option>
+                    <option value="Seguros Bolivar">Seguros Bolívar</option>
+                    <option value="Imagine">Imagine</option>
+                    <option value="Colmedica">Colmédica</option>
+                    <option value="AXA Colpatria">AXA Colpatria</option>
+                    <option value="Seguros Alfa">Seguros Alfa</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="developer" class="form-label">Desarrollador</label>
+                <select class="form-select" id="developer" name="developer">
+                    <option value="No asignado">No asignado</option>
+                    <option value="Jairo Adolfo Niño">Jairo Adolfo Niño</option>
+                    <option value="Danilo Ramírez">Danilo Ramírez</option>
+                    <option value="Jenry Henao Valencia">Jenry Henao Valencia</option>
+                    <option value="Wilson Aponte Garcia">Wilson Aponte Garcia</option>
+                    <option value="Alejandro Cardona">Alejandro Cardona</option>
+                    <option value="Brayan Alexander Diaz">Brayan Alexander Diaz</option>
+                    <option value="Mauricio Figueroa Quintero">Mauricio Figueroa Quintero</option>
+                    <option value="Jhon Bermudez">Jhon Bermudez</option>
+                    <option value="Faber Alonso Lopez">Faber Alonso Lopez</option>
+                    <option value="Jennifer Osorio Castillo">Jennifer Osorio Castillo</option>
+                    <option value="Jesus Pena">Jesus Pena</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Agregar Requerimiento</button>
+        </form>
+        <h2 class="mt-5">Requerimientos</h2>
+        <div class="row">
+            <div class="column" id="Pendiente">
+                <h3>Pendiente</h3>
+                {% for req in requirements %}
+                    {% if req['status'] == 'Pendiente' %}
+                        <div class="requirement" draggable="true" data-id="{{ req['id'] }}" data-status="{{ req['status'] }}">
+                            <strong>{{ req['title'] }}</strong> ({{ req['created_at'] }})<br>
+                            Prioridad: {{ req['priority'] or 'Sin prioridad' }} | Progreso: {{ req['progress'] }}% | Unidad: {{ req['unit'] }} | Desarrollador: {{ req['developer'] or 'No asignado' }}<br>
+                            <div class="progress-bar" style="width: {{ req['progress'] }}%;"></div>
+                            <p>{{ req['description'] or 'Sin descripción' }}</p>
+                            <button class="btn btn-sm btn-info edit-btn" onclick="toggleEditForm({{ req['id'] }})">Editar</button>
+                            <div class="edit-form" id="edit-form-{{ req['id'] }}">
+                                <form method="POST" action="{{ url_for('edit_requirement', id=req['id']) }}">
+                                    <div class="mb-2">
+                                        <label for="edit-title-{{ req['id'] }}" class="form-label">Título</label>
+                                        <input type="text" class="form-control" id="edit-title-{{ req['id'] }}" name="title" value="{{ req['title'] }}" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-description-{{ req['id'] }}" class="form-label">Descripción</label>
+                                        <textarea class="form-control" id="edit-description-{{ req['id'] }}" name="description">{{ req['description'] or '' }}</textarea>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-status-{{ req['id'] }}" class="form-label">Estado</label>
+                                        <select class="form-select" id="edit-status-{{ req['id'] }}" name="status">
+                                            <option value="Pendiente" {% if req['status'] == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                                            <option value="En Progreso" {% if req['status'] == 'En Progreso' %}selected{% endif %}>En Progreso</option>
+                                            <option value="Completado" {% if req['status'] == 'Completado' %}selected{% endif %}>Completado</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-priority-{{ req['id'] }}" class="form-label">Prioridad</label>
+                                        <select class="form-select" id="edit-priority-{{ req['id'] }}" name="priority">
+                                            <option value="Baja" {% if req['priority'] == 'Baja' %}selected{% endif %}>Baja</option>
+                                            <option value="Media" {% if req['priority'] == 'Media' %}selected{% endif %}>Media</option>
+                                            <option value="Alta" {% if req['priority'] == 'Alta' %}selected{% endif %}>Alta</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-progress-{{ req['id'] }}" class="form-label">Progreso (%)</label>
+                                        <input type="number" class="form-control" id="edit-progress-{{ req['id'] }}" name="progress" value="{{ req['progress'] }}" min="0" max="100" oninput="validateProgress(this)">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-unit-{{ req['id'] }}" class="form-label">Unidad Operativa</label>
+                                        <select class="form-select" id="edit-unit-{{ req['id'] }}" name="unit">
+                                            <option value="Colmena" {% if req['unit'] == 'Colmena' %}selected{% endif %}>Colmena</option>
+                                            <option value="Tuya" {% if req['unit'] == 'Tuya' %}selected{% endif %}>Tuya</option>
+                                            <option value="Proteccion" {% if req['unit'] == 'Proteccion' %}selected{% endif %}>Protección</option>
+                                            <option value="Seguros Bolivar" {% if req['unit'] == 'Seguros Bolivar' %}selected{% endif %}>Seguros Bolívar</option>
+                                            <option value="Imagine" {% if req['unit'] == 'Imagine' %}selected{% endif %}>Imagine</option>
+                                            <option value="Colmedica" {% if req['unit'] == 'Colmedica' %}selected{% endif %}>Colmédica</option>
+                                            <option value="AXA Colpatria" {% if req['unit'] == 'AXA Colpatria' %}selected{% endif %}>AXA Colpatria</option>
+                                            <option value="Seguros Alfa" {% if req['unit'] == 'Seguros Alfa' %}selected{% endif %}>Seguros Alfa</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-developer-{{ req['id'] }}" class="form-label">Desarrollador</label>
+                                        <select class="form-select" id="edit-developer-{{ req['id'] }}" name="developer">
+                                            <option value="No asignado" {% if req['developer'] == 'No asignado' %}selected{% endif %}>No asignado</option>
+                                            <option value="Jairo Adolfo Niño" {% if req['developer'] == 'Jairo Adolfo Niño' %}selected{% endif %}>Jairo Adolfo Niño</option>
+                                            <option value="Danilo Ramírez" {% if req['developer'] == 'Danilo Ramírez' %}selected{% endif %}>Danilo Ramírez</option>
+                                            <option value="Jenry Henao Valencia" {% if req['developer'] == 'Jenry Henao Valencia' %}selected{% endif %}>Jenry Henao Valencia</option>
+                                            <option value="Wilson Aponte Garcia" {% if req['developer'] == 'Wilson Aponte Garcia' %}selected{% endif %}>Wilson Aponte Garcia</option>
+                                            <option value="Alejandro Cardona" {% if req['developer'] == 'Alejandro Cardona' %}selected{% endif %}>Alejandro Cardona</option>
+                                            <option value="Brayan Alexander Diaz" {% if req['developer'] == 'Brayan Alexander Diaz' %}selected{% endif %}>Brayan Alexander Diaz</option>
+                                            <option value="Mauricio Figueroa Quintero" {% if req['developer'] == 'Mauricio Figueroa Quintero' %}selected{% endif %}>Mauricio Figueroa Quintero</option>
+                                            <option value="Jhon Bermudez" {% if req['developer'] == 'Jhon Bermudez' %}selected{% endif %}>Jhon Bermudez</option>
+                                            <option value="Faber Alonso Lopez" {% if req['developer'] == 'Faber Alonso Lopez' %}selected{% endif %}>Faber Alonso Lopez</option>
+                                            <option value="Jennifer Osorio Castillo" {% if req['developer'] == 'Jennifer Osorio Castillo' %}selected{% endif %}>Jennifer Osorio Castillo</option>
+                                            <option value="Jesus Pena" {% if req['developer'] == 'Jesus Pena' %}selected{% endif %}>Jesus Pena</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary mt-2">Guardar</button>
+                                    <button type="button" class="btn btn-secondary mt-2" onclick="toggleEditForm({{ req['id'] }})">Cancelar</button>
+                                </form>
+                            </div>
+                            <div class="comment-form">
+                                <form method="POST" action="{{ url_for('add_comment', requirement_id=req['id']) }}">
+                                    <textarea class="form-control mt-2" name="comment" placeholder="Añadir comentario" required></textarea>
+                                    <button type="submit" class="btn btn-secondary mt-1">Añadir</button>
+                                </form>
+                                {% if req['comments'] %}
+                                    <h6 class="mt-2">Comentarios:</h6>
+                                    {% for comment in req['comments'] %}
+                                        <p class="small text-muted">{{ comment['comment'] }} ({{ comment['created_at'] }})</p>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="column" id="En Progreso">
+                <h3>En Progreso</h3>
+                {% for req in requirements %}
+                    {% if req['status'] == 'En Progreso' %}
+                        <div class="requirement" draggable="true" data-id="{{ req['id'] }}" data-status="{{ req['status'] }}">
+                            <strong>{{ req['title'] }}</strong> ({{ req['created_at'] }})<br>
+                            Prioridad: {{ req['priority'] or 'Sin prioridad' }} | Progreso: {{ req['progress'] }}% | Unidad: {{ req['unit'] }} | Desarrollador: {{ req['developer'] or 'No asignado' }}<br>
+                            <div class="progress-bar" style="width: {{ req['progress'] }}%;"></div>
+                            <p>{{ req['description'] or 'Sin descripción' }}</p>
+                            <button class="btn btn-sm btn-info edit-btn" onclick="toggleEditForm({{ req['id'] }})">Editar</button>
+                            <div class="edit-form" id="edit-form-{{ req['id'] }}">
+                                <form method="POST" action="{{ url_for('edit_requirement', id=req['id']) }}">
+                                    <div class="mb-2">
+                                        <label for="edit-title-{{ req['id'] }}" class="form-label">Título</label>
+                                        <input type="text" class="form-control" id="edit-title-{{ req['id'] }}" name="title" value="{{ req['title'] }}" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-description-{{ req['id'] }}" class="form-label">Descripción</label>
+                                        <textarea class="form-control" id="edit-description-{{ req['id'] }}" name="description">{{ req['description'] or '' }}</textarea>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-status-{{ req['id'] }}" class="form-label">Estado</label>
+                                        <select class="form-select" id="edit-status-{{ req['id'] }}" name="status">
+                                            <option value="Pendiente" {% if req['status'] == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                                            <option value="En Progreso" {% if req['status'] == 'En Progreso' %}selected{% endif %}>En Progreso</option>
+                                            <option value="Completado" {% if req['status'] == 'Completado' %}selected{% endif %}>Completado</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-priority-{{ req['id'] }}" class="form-label">Prioridad</label>
+                                        <select class="form-select" id="edit-priority-{{ req['id'] }}" name="priority">
+                                            <option value="Baja" {% if req['priority'] == 'Baja' %}selected{% endif %}>Baja</option>
+                                            <option value="Media" {% if req['priority'] == 'Media' %}selected{% endif %}>Media</option>
+                                            <option value="Alta" {% if req['priority'] == 'Alta' %}selected{% endif %}>Alta</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-progress-{{ req['id'] }}" class="form-label">Progreso (%)</label>
+                                        <input type="number" class="form-control" id="edit-progress-{{ req['id'] }}" name="progress" value="{{ req['progress'] }}" min="0" max="100" oninput="validateProgress(this)">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-unit-{{ req['id'] }}" class="form-label">Unidad Operativa</label>
+                                        <select class="form-select" id="edit-unit-{{ req['id'] }}" name="unit">
+                                            <option value="Colmena" {% if req['unit'] == 'Colmena' %}selected{% endif %}>Colmena</option>
+                                            <option value="Tuya" {% if req['unit'] == 'Tuya' %}selected{% endif %}>Tuya</option>
+                                            <option value="Proteccion" {% if req['unit'] == 'Proteccion' %}selected{% endif %}>Protección</option>
+                                            <option value="Seguros Bolivar" {% if req['unit'] == 'Seguros Bolivar' %}selected{% endif %}>Seguros Bolívar</option>
+                                            <option value="Imagine" {% if req['unit'] == 'Imagine' %}selected{% endif %}>Imagine</option>
+                                            <option value="Colmedica" {% if req['unit'] == 'Colmedica' %}selected{% endif %}>Colmédica</option>
+                                            <option value="AXA Colpatria" {% if req['unit'] == 'AXA Colpatria' %}selected{% endif %}>AXA Colpatria</option>
+                                            <option value="Seguros Alfa" {% if req['unit'] == 'Seguros Alfa' %}selected{% endif %}>Seguros Alfa</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-developer-{{ req['id'] }}" class="form-label">Desarrollador</label>
+                                        <select class="form-select" id="edit-developer-{{ req['id'] }}" name="developer">
+                                            <option value="No asignado" {% if req['developer'] == 'No asignado' %}selected{% endif %}>No asignado</option>
+                                            <option value="Jairo Adolfo Niño" {% if req['developer'] == 'Jairo Adolfo Niño' %}selected{% endif %}>Jairo Adolfo Niño</option>
+                                            <option value="Danilo Ramírez" {% if req['developer'] == 'Danilo Ramírez' %}selected{% endif %}>Danilo Ramírez</option>
+                                            <option value="Jenry Henao Valencia" {% if req['developer'] == 'Jenry Henao Valencia' %}selected{% endif %}>Jenry Henao Valencia</option>
+                                            <option value="Wilson Aponte Garcia" {% if req['developer'] == 'Wilson Aponte Garcia' %}selected{% endif %}>Wilson Aponte Garcia</option>
+                                            <option value="Alejandro Cardona" {% if req['developer'] == 'Alejandro Cardona' %}selected{% endif %}>Alejandro Cardona</option>
+                                            <option value="Brayan Alexander Diaz" {% if req['developer'] == 'Brayan Alexander Diaz' %}selected{% endif %}>Brayan Alexander Diaz</option>
+                                            <option value="Mauricio Figueroa Quintero" {% if req['developer'] == 'Mauricio Figueroa Quintero' %}selected{% endif %}>Mauricio Figueroa Quintero</option>
+                                            <option value="Jhon Bermudez" {% if req['developer'] == 'Jhon Bermudez' %}selected{% endif %}>Jhon Bermudez</option>
+                                            <option value="Faber Alonso Lopez" {% if req['developer'] == 'Faber Alonso Lopez' %}selected{% endif %}>Faber Alonso Lopez</option>
+                                            <option value="Jennifer Osorio Castillo" {% if req['developer'] == 'Jennifer Osorio Castillo' %}selected{% endif %}>Jennifer Osorio Castillo</option>
+                                            <option value="Jesus Pena" {% if req['developer'] == 'Jesus Pena' %}selected{% endif %}>Jesus Pena</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary mt-2">Guardar</button>
+                                    <button type="button" class="btn btn-secondary mt-2" onclick="toggleEditForm({{ req['id'] }})">Cancelar</button>
+                                </form>
+                            </div>
+                            <div class="comment-form">
+                                <form method="POST" action="{{ url_for('add_comment', requirement_id=req['id']) }}">
+                                    <textarea class="form-control mt-2" name="comment" placeholder="Añadir comentario" required></textarea>
+                                    <button type="submit" class="btn btn-secondary mt-1">Añadir</button>
+                                </form>
+                                {% if req['comments'] %}
+                                    <h6 class="mt-2">Comentarios:</h6>
+                                    {% for comment in req['comments'] %}
+                                        <p class="small text-muted">{{ comment['comment'] }} ({{ comment['created_at'] }})</p>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="column" id="Completado">
+                <h3>Completado</h3>
+                {% for req in requirements %}
+                    {% if req['status'] == 'Completado' %}
+                        <div class="requirement" draggable="true" data-id="{{ req['id'] }}" data-status="{{ req['status'] }}">
+                            <strong>{{ req['title'] }}</strong> ({{ req['created_at'] }})<br>
+                            Prioridad: {{ req['priority'] or 'Sin prioridad' }} | Progreso: {{ req['progress'] }}% | Unidad: {{ req['unit'] }} | Desarrollador: {{ req['developer'] or 'No asignado' }}<br>
+                            <div class="progress-bar" style="width: {{ req['progress'] }}%;"></div>
+                            <p>{{ req['description'] or 'Sin descripción' }}</p>
+                            <button class="btn btn-sm btn-info edit-btn" onclick="toggleEditForm({{ req['id'] }})">Editar</button>
+                            <div class="edit-form" id="edit-form-{{ req['id'] }}">
+                                <form method="POST" action="{{ url_for('edit_requirement', id=req['id']) }}">
+                                    <div class="mb-2">
+                                        <label for="edit-title-{{ req['id'] }}" class="form-label">Título</label>
+                                        <input type="text" class="form-control" id="edit-title-{{ req['id'] }}" name="title" value="{{ req['title'] }}" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-description-{{ req['id'] }}" class="form-label">Descripción</label>
+                                        <textarea class="form-control" id="edit-description-{{ req['id'] }}" name="description">{{ req['description'] or '' }}</textarea>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-status-{{ req['id'] }}" class="form-label">Estado</label>
+                                        <select class="form-select" id="edit-status-{{ req['id'] }}" name="status">
+                                            <option value="Pendiente" {% if req['status'] == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                                            <option value="En Progreso" {% if req['status'] == 'En Progreso' %}selected{% endif %}>En Progreso</option>
+                                            <option value="Completado" {% if req['status'] == 'Completado' %}selected{% endif %}>Completado</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-priority-{{ req['id'] }}" class="form-label">Prioridad</label>
+                                        <select class="form-select" id="edit-priority-{{ req['id'] }}" name="priority">
+                                            <option value="Baja" {% if req['priority'] == 'Baja' %}selected{% endif %}>Baja</option>
+                                            <option value="Media" {% if req['priority'] == 'Media' %}selected{% endif %}>Media</option>
+                                            <option value="Alta" {% if req['priority'] == 'Alta' %}selected{% endif %}>Alta</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-progress-{{ req['id'] }}" class="form-label">Progreso (%)</label>
+                                        <input type="number" class="form-control" id="edit-progress-{{ req['id'] }}" name="progress" value="{{ req['progress'] }}" min="0" max="100" oninput="validateProgress(this)">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-unit-{{ req['id'] }}" class="form-label">Unidad Operativa</label>
+                                        <select class="form-select" id="edit-unit-{{ req['id'] }}" name="unit">
+                                            <option value="Colmena" {% if req['unit'] == 'Colmena' %}selected{% endif %}>Colmena</option>
+                                            <option value="Tuya" {% if req['unit'] == 'Tuya' %}selected{% endif %}>Tuya</option>
+                                            <option value="Proteccion" {% if req['unit'] == 'Proteccion' %}selected{% endif %}>Protección</option>
+                                            <option value="Seguros Bolivar" {% if req['unit'] == 'Seguros Bolivar' %}selected{% endif %}>Seguros Bolívar</option>
+                                            <option value="Imagine" {% if req['unit'] == 'Imagine' %}selected{% endif %}>Imagine</option>
+                                            <option value="Colmedica" {% if req['unit'] == 'Colmedica' %}selected{% endif %}>Colmédica</option>
+                                            <option value="AXA Colpatria" {% if req['unit'] == 'AXA Colpatria' %}selected{% endif %}>AXA Colpatria</option>
+                                            <option value="Seguros Alfa" {% if req['unit'] == 'Seguros Alfa' %}selected{% endif %}>Seguros Alfa</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="edit-developer-{{ req['id'] }}" class="form-label">Desarrollador</label>
+                                        <select class="form-select" id="edit-developer-{{ req['id'] }}" name="developer">
+                                            <option value="No asignado" {% if req['developer'] == 'No asignado' %}selected{% endif %}>No asignado</option>
+                                            <option value="Jairo Adolfo Niño" {% if req['developer'] == 'Jairo Adolfo Niño' %}selected{% endif %}>Jairo Adolfo Niño</option>
+                                            <option value="Danilo Ramírez" {% if req['developer'] == 'Danilo Ramírez' %}selected{% endif %}>Danilo Ramírez</option>
+                                            <option value="Jenry Henao Valencia" {% if req['developer'] == 'Jenry Henao Valencia' %}selected{% endif %}>Jenry Henao Valencia</option>
+                                            <option value="Wilson Aponte Garcia" {% if req['developer'] == 'Wilson Aponte Garcia' %}selected{% endif %}>Wilson Aponte Garcia</option>
+                                            <option value="Alejandro Cardona" {% if req['developer'] == 'Alejandro Cardona' %}selected{% endif %}>Alejandro Cardona</option>
+                                            <option value="Brayan Alexander Diaz" {% if req['developer'] == 'Brayan Alexander Diaz' %}selected{% endif %}>Brayan Alexander Diaz</option>
+                                            <option value="Mauricio Figueroa Quintero" {% if req['developer'] == 'Mauricio Figueroa Quintero' %}selected{% endif %}>Mauricio Figueroa Quintero</option>
+                                            <option value="Jhon Bermudez" {% if req['developer'] == 'Jhon Bermudez' %}selected{% endif %}>Jhon Bermudez</option>
+                                            <option value="Faber Alonso Lopez" {% if req['developer'] == 'Faber Alonso Lopez' %}selected{% endif %}>Faber Alonso Lopez</option>
+                                            <option value="Jennifer Osorio Castillo" {% if req['developer'] == 'Jennifer Osorio Castillo' %}selected{% endif %}>Jennifer Osorio Castillo</option>
+                                            <option value="Jesus Pena" {% if req['developer'] == 'Jesus Pena' %}selected{% endif %}>Jesus Pena</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary mt-2">Guardar</button>
+                                    <button type="button" class="btn btn-secondary mt-2" onclick="toggleEditForm({{ req['id'] }})">Cancelar</button>
+                                </form>
+                            </div>
+                            <div class="comment-form">
+                                <form method="POST" action="{{ url_for('add_comment', requirement_id=req['id']) }}">
+                                    <textarea class="form-control mt-2" name="comment" placeholder="Añadir comentario" required></textarea>
+                                    <button type="submit" class="btn btn-secondary mt-1">Añadir</button>
+                                </form>
+                                {% if req['comments'] %}
+                                    <h6 class="mt-2">Comentarios:</h6>
+                                    {% for comment in req['comments'] %}
+                                        <p class="small text-muted">{{ comment['comment'] }} ({{ comment['created_at'] }})</p>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <a href="{{ url_for('export_csv') }}" class="btn btn-success mt-3">Exportar a CSV</a>
+    </div>
+    <script>
+        function toggleEditForm(reqId) {
+            const form = document.getElementById(`edit-form-${reqId}`);
+            form.style.display = form.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function validateProgress(input) {
+            if (input.value < 0) input.value = 0;
+            if (input.value > 100) input.value = 100;
+        }
+
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        // Mostrar notificación si hay mensaje de flash
+        {% if messages %}
+            {% for category, message in messages %}
+                showNotification('{{ message }}');
+            {% endfor %}
+        {% endif %}
+
+        const columns = document.querySelectorAll('.column');
+        let draggedItem = null;
+
+        columns.forEach(column => {
+            column.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            column.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (draggedItem) {
+                    const reqId = draggedItem.getAttribute('data-id');
+                    const newStatus = column.id; // Usar el ID exacto de la columna
+                    fetch(`/update_status/${reqId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `status=${encodeURIComponent(newStatus)}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            draggedItem.setAttribute('data-status', newStatus);
+                            column.appendChild(draggedItem);
+                            draggedItem.classList.remove('dragging');
+                            draggedItem = null;
+                            showNotification('Estado actualizado exitosamente');
+                        } else {
+                            alert(data.error);
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+                }
+            });
+        });
+
+        document.querySelectorAll('.requirement').forEach(item => {
+            item.addEventListener('dragstart', () => {
+                draggedItem = item;
+                setTimeout(() => item.classList.add('dragging'), 0);
+            });
+
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+            });
+        });
+    </script>
+</body>
+</html>
